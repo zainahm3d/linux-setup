@@ -3,12 +3,13 @@
   hosts: ubuntu_hosts
   become: true
   become_method: sudo
+  # ansible seems to not work well with sudo-rs yet
   become_exe: /usr/bin/sudo.ws
   vars:
-    # User to configure fish/rust/cargo for. Defaults to whoever you're logged in as.
+    # User to configure fish/rust/cargo for.
     target_user: "{{ lookup('env', 'USER') }}"
     target_home: "{{ lookup('env', 'HOME') }}"
-    # Map uname-style arch names to Debian/Ubuntu apt arch names.
+    # Map uname style arch names to Debian/Ubuntu apt arch names.
     deb_arch_map:
       x86_64: amd64
       aarch64: arm64
@@ -72,6 +73,7 @@
       ansible.builtin.lineinfile:
         path: /etc/shells
         line: /usr/bin/fish
+        mode: "0644"
         create: true
 
     - name: Switch to fish
@@ -166,3 +168,11 @@
         PATH: "{{ target_home }}/.cargo/bin:{{ ansible_facts['env']['PATH'] }}"
       args:
         creates: "{{ target_home }}/.cargo/bin/cyme"
+
+    - name: Install xfr
+      ansible.builtin.command: cargo install xfr
+      become_user: "{{ target_user }}"
+      environment:
+        PATH: "{{ target_home }}/.cargo/bin:{{ ansible_facts['env']['PATH'] }}"
+      args:
+        creates: "{{ target_home }}/.cargo/bin/xfr"
