@@ -1,0 +1,165 @@
+---
+- name: Ubuntu setup
+  hosts: ubuntu_hosts
+  become: true
+  vars:
+    # User to configure fish/rust/cargo for. Defaults to whoever you're logged in as.
+    target_user: "{{ lookup('env', 'USER') }}"
+    target_home: "{{ lookup('env', 'HOME') }}"
+    # Map uname-style arch names to Debian/Ubuntu apt arch names.
+    deb_arch_map:
+      x86_64: amd64
+      aarch64: arm64
+      armv7l: armhf
+    deb_arch: "{{ deb_arch_map[ansible_facts['architecture']] | default(ansible_facts['architecture']) }}"
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install apt packages
+      ansible.builtin.apt:
+        name:
+          - fish
+          - build-essential
+          - btop
+          - bat
+          - usbutils
+          - pkg-config
+          - libusb-1.0-0-dev
+          - libudev-dev
+          - curl
+          - git
+          - tig
+          - fzf
+          - fonts-jetbrains-mono
+          - rustup
+          - zoxide
+          - eza
+          - ripgrep
+        state: present
+
+    - name: Create keyrings directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add gh cli apt key
+      ansible.builtin.get_url:
+        url: https://cli.github.com/packages/githubcli-archive-keyring.gpg
+        dest: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+        mode: "0644"
+
+    - name: Add gh cli repo
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ deb_arch }} signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        filename: github-cli
+        state: present
+        update_cache: true
+
+    - name: Install gh cli
+      ansible.builtin.apt:
+        name: gh
+        state: present
+
+    - name: Make sure fish is registered as a valid shell
+      ansible.builtin.lineinfile:
+        path: /etc/shells
+        line: /usr/bin/fish
+        create: true
+
+    - name: Switch to fish
+      ansible.builtin.user:
+        name: "{{ target_user }}"
+        shell: /usr/bin/fish
+
+    - name: Add user to dialout group
+      ansible.builtin.user:
+        name: "{{ target_user }}"
+        groups: dialout
+        append: true
+
+    - name: Install stable rust toolchain
+      ansible.builtin.command: rustup default stable
+      become_user: "{{ target_user }}"
+
+    - name: Ensure ~/.config/fish exists
+      ansible.builtin.file:
+        path: "{{ target_home }}/.config/fish"
+        state: directory
+        mode: "0755"
+        owner: "{{ target_user }}"
+      become_user: "{{ target_user }}"
+
+    - name: Add ~/.cargo/bin to fish's PATH
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.config/fish/config.fish"
+        line: "fish_add_path $HOME/.cargo/bin"
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Set up zoxide for fish
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.config/fish/config.fish"
+        line: "zoxide init fish | source"
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Alias ls to eza --icons in fish
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.config/fish/config.fish"
+        line: 'alias ls "eza --icons"'
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Set up fzf keybindings for fish
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.config/fish/config.fish"
+        line: "fzf --fish | source"
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Add ~/.local/bin to fish's PATH
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.config/fish/config.fish"
+        line: "fish_add_path $HOME/.local/bin"
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Add ~/.cargo/bin to bash's PATH
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.bashrc"
+        line: 'export PATH="$HOME/.cargo/bin:$PATH"'
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Add ~/.local/bin to bash's PATH for uv
+      ansible.builtin.lineinfile:
+        path: "{{ target_home }}/.bashrc"
+        line: 'export PATH="$HOME/.local/bin:$PATH"'
+        create: true
+        mode: "0644"
+      become_user: "{{ target_user }}"
+
+    - name: Install uv
+      ansible.builtin.shell: curl -LsSf https://astral.sh/uv/install.sh | sh
+      become_user: "{{ target_user }}"
+      args:
+        creates: "{{ target_home }}/.local/bin/uv"
+
+    - name: Install cyme
+      ansible.builtin.command: cargo install cyme
+      become_user: "{{ target_user }}"
+      environment:
+        PATH: "{{ target_home }}/.cargo/bin:{{ ansible_facts['env']['PATH'] }}"
+      args:
+        creates: "{{ target_home }}/.cargo/bin/cyme"
