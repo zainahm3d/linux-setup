@@ -39,6 +39,7 @@
           - zoxide
           - eza
           - ripgrep
+          - ipython3
         state: present
 
     - name: Create keyrings directory
