@@ -2,6 +2,8 @@
 - name: Ubuntu setup
   hosts: ubuntu_hosts
   become: true
+  become_method: sudo
+  become_exe: /usr/bin/sudo.ws
   vars:
     # User to configure fish/rust/cargo for. Defaults to whoever you're logged in as.
     target_user: "{{ lookup('env', 'USER') }}"
