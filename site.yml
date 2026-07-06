@@ -161,8 +161,16 @@
       args:
         creates: "{{ target_home }}/.local/bin/uv"
 
+    - name: Install cargo-binstall
+      ansible.builtin.shell: curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+      become_user: "{{ target_user }}"
+      environment:
+        PATH: "{{ target_home }}/.cargo/bin:{{ ansible_facts['env']['PATH'] }}"
+      args:
+        creates: "{{ target_home }}/.cargo/bin/cargo-binstall"
+
     - name: Install cyme
-      ansible.builtin.command: cargo install cyme
+      ansible.builtin.command: cargo binstall --no-confirm cyme
       become_user: "{{ target_user }}"
       environment:
         PATH: "{{ target_home }}/.cargo/bin:{{ ansible_facts['env']['PATH'] }}"
@@ -170,7 +178,7 @@
         creates: "{{ target_home }}/.cargo/bin/cyme"
 
     - name: Install xfr
-      ansible.builtin.command: cargo install xfr
+      ansible.builtin.command: cargo binstall --no-confirm xfr
       become_user: "{{ target_user }}"
       environment:
         PATH: "{{ target_home }}/.cargo/bin:{{ ansible_facts['env']['PATH'] }}"
